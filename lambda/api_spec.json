@@ -1,0 +1,30 @@
+[
+    {
+        "name": "lookup_product",
+        "description": "제품명이나 카테고리로 제품 정보를 조회합니다. 스펙, 가격, 보증, 반품 정책을 포함합니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "제품명 또는 카테고리 (예: Galaxy S25 Ultra, 이어폰, 태블릿)"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "diagnose_issue",
+        "description": "기술 문제 증상을 입력하면 원인 진단과 해결 방법을 안내합니다.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "기술 문제 증상 (예: 과열, 배터리 빨리 닳음, 블루투스 끊김)"
+                }
+            },
+            "required": ["query"]
+        }
+    }
+]
