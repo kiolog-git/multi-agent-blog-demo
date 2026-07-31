@@ -123,12 +123,15 @@ def setup_cognito():
     print(f"  UI Client ID: {ui_client_id}")
 
     # 테스트 사용자 생성 (demo / Demo1234!)
-    cognito.admin_create_user(
-        UserPoolId=pool_id,
-        Username="demo",
-        TemporaryPassword="Demo1234!",
-        MessageAction="SUPPRESS",
-    )
+    try:
+        cognito.admin_create_user(
+            UserPoolId=pool_id,
+            Username="demo",
+            TemporaryPassword="Demo1234!",
+            MessageAction="SUPPRESS",
+        )
+    except cognito.exceptions.UsernameExistsException:
+        pass  # 이미 존재하면 무시하고 비밀번호만 확정
     cognito.admin_set_user_password(
         UserPoolId=pool_id,
         Username="demo",
