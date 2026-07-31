@@ -14,7 +14,15 @@ from bedrock_agentcore.runtime import serve_a2a
 # Gateway 인증 (Cognito → Bearer Token)
 # =============================================================================
 
-ssm = boto3.client("ssm", region_name="us-east-1")
+# 모델: Gateway(MCP)로 받은 도구를 호출하려면 tool use를 안정적으로 지원하는 모델이 필요합니다.
+# Nova Pro는 MCP 도구명(예: tools-lambda___diagnose_issue) 호출 시
+# modelStreamErrorException("Model produced invalid sequence as part of ToolUse")가 발생합니다.
+# 리전: AgentCore Runtime이 주입하는 AWS_REGION을 사용합니다(setup.sh가 배포 리전을 전달).
+REGION = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
+
+MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+
+ssm = boto3.client("ssm", region_name=REGION)
 GATEWAY_URL = ssm.get_parameter(Name="/app/multiagent/blog/gateway_url")["Parameter"]["Value"]
 COGNITO_CLIENT_ID = ssm.get_parameter(Name="/app/multiagent/blog/cognito_client_id")["Parameter"]["Value"]
 COGNITO_TOKEN_URL = ssm.get_parameter(Name="/app/multiagent/blog/cognito_token_url")["Parameter"]["Value"]
@@ -53,7 +61,7 @@ with mcp_client:
     agent = Agent(
         name="Technician Agent",
         description="기기 과열, 배터리, 블루투스 등 기술 문제를 진단하고 해결책을 안내하는 기술자 AI",
-        model=BedrockModel(model_id="us.amazon.nova-pro-v1:0", region_name="us-east-1"),
+        model=BedrockModel(model_id=MODEL_ID, region_name=REGION),
         tools=mcp_client.list_tools_sync(),
         system_prompt="당신은 기술자입니다. 도구를 사용해서 정확한 기술 정보를 제공하세요. 항상 한국어로 응답하세요.",
         callback_handler=None,

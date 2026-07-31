@@ -40,6 +40,29 @@ else
 fi
 
 # =============================================================================
+# 사전 점검: Bedrock 모델 액세스
+# =============================================================================
+# 에이전트가 사용하는 모델. agent_*.py의 MODEL_ID와 반드시 동일해야 합니다.
+# Gateway(MCP)로 받은 도구를 호출하려면 tool use가 안정적인 모델이 필요합니다.
+# Nova Pro는 MCP 도구명(tools-lambda___lookup_product) 호출 시
+# modelStreamErrorException("Model produced invalid sequence as part of ToolUse")로 실패합니다.
+MODEL_ID="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+
+echo "  Bedrock 모델 액세스 확인: $MODEL_ID"
+if ! aws bedrock-runtime converse \
+    --model-id "$MODEL_ID" \
+    --messages '[{"role":"user","content":[{"text":"hi"}]}]' \
+    --inference-config '{"maxTokens":1}' \
+    --region "$REGION" >/dev/null 2>&1; then
+    echo ""
+    echo "❌ 모델을 호출할 수 없습니다: $MODEL_ID"
+    echo "   Bedrock 콘솔 → Model access 에서 Anthropic Claude 모델 액세스를 활성화하세요."
+    echo "   https://console.aws.amazon.com/bedrock/home?region=${REGION}#/modelaccess"
+    exit 1
+fi
+echo "    OK"
+
+# =============================================================================
 # 헬퍼 함수
 # =============================================================================
 
@@ -355,16 +378,13 @@ for AGENT in agent_consultant agent_technician; do
         --network-configuration '{"networkMode":"PUBLIC"}' \
         --protocol-configuration '{"serverProtocol":"A2A"}' \
         --authorizer-configuration "$AUTH_CONFIG" \
+        --environment-variables "AWS_REGION=${REGION}" \
         --region "$REGION" \
-        --query 'agentRuntimeArn' --output text 2>/dev/null || echo "")
-    if [ -n "$AGENT_ARN" ] && [ "$AGENT_ARN" != "None" ]; then
-        AGENT_URL=$(python3 -c "from bedrock_agentcore.runtime import build_runtime_url; print(build_runtime_url('$AGENT_ARN'))")
-        aws ssm put-parameter --name "${SSM_PREFIX}/${AGENT}_url" \
-            --value "$AGENT_URL" --type String --overwrite --region "$REGION" >/dev/null
-        echo "    URL 저장 완료"
-    else
-        echo "    등록 실패 (수동 배포 필요)"
-    fi
+        --query 'agentRuntimeArn' --output text)
+    AGENT_URL=$(python3 -c "from bedrock_agentcore.runtime import build_runtime_url; print(build_runtime_url('$AGENT_ARN'))")
+    aws ssm put-parameter --name "${SSM_PREFIX}/${AGENT}_url" \
+        --value "$AGENT_URL" --type String --overwrite --region "$REGION" >/dev/null
+    echo "    URL 저장 완료"
 done
 
 # orchestrator: HTTP 프로토콜 (포트 8080) + requestHeaderAllowlist
@@ -377,16 +397,13 @@ ORCH_ARN=$(aws bedrock-agentcore-control create-agent-runtime \
     --protocol-configuration '{"serverProtocol":"HTTP"}' \
     --authorizer-configuration "$AUTH_CONFIG" \
     --request-header-configuration '{"requestHeaderAllowlist":["Authorization"]}' \
+    --environment-variables "AWS_REGION=${REGION}" \
     --region "$REGION" \
-    --query 'agentRuntimeArn' --output text 2>/dev/null || echo "")
-if [ -n "$ORCH_ARN" ] && [ "$ORCH_ARN" != "None" ]; then
-    ORCH_URL=$(python3 -c "from bedrock_agentcore.runtime import build_runtime_url; print(build_runtime_url('$ORCH_ARN'))")
-    aws ssm put-parameter --name "${SSM_PREFIX}/agent_orchestrator_url" \
-        --value "$ORCH_URL" --type String --overwrite --region "$REGION" >/dev/null
-    echo "    URL 저장 완료"
-else
-    echo "    등록 실패 (수동 배포 필요)"
-fi
+    --query 'agentRuntimeArn' --output text)
+ORCH_URL=$(python3 -c "from bedrock_agentcore.runtime import build_runtime_url; print(build_runtime_url('$ORCH_ARN'))")
+aws ssm put-parameter --name "${SSM_PREFIX}/agent_orchestrator_url" \
+    --value "$ORCH_URL" --type String --overwrite --region "$REGION" >/dev/null
+echo "    URL 저장 완료"
 
 # =============================================================================
 # 완료
